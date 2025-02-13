@@ -1,0 +1,11 @@
+#!/bin/sh
+
+build() {
+    add_runscript
+}
+
+help() {
+    cat <<HELPEOF
+    This hook moves a squashfs filesystem to a ramdisk and mounts it as the root filesystem.
+HELPEOF
+}

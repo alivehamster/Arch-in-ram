@@ -1,0 +1,41 @@
+#!/bin/sh
+
+switch() {
+    mkdir -p /squash_root/proc
+    mkdir -p /squash_root/sys
+    mkdir -p /squash_root/dev
+
+#    mount -t proc proc /squash_root/proc
+#    mount -t sysfs sys /squash_root/sys
+#    mount -t devtmpfs dev /squash_root/dev
+
+    # Switch root to /squash_root
+    exec switch_root /squash_root /sbin/init
+}
+
+stuff() {
+    mkdir -p /mnt/stuff
+    mount UUID="part3-uuid" /mnt/stuff
+
+    mkdir -p /mnt/ramdisk
+    mount -t tmpfs -o size=4G tmpfs /mnt/ramdisk
+
+    cp /mnt/stuff/rootfs.sfs /mnt/ramdisk/
+    mkdir -p /squash_root
+    mount -t squashfs /mnt/ramdisk/rootfs.sfs /squash_root -o loop
+
+    # Create an overlayfs to make the squashfs writable and volatile
+    mkdir -p /mnt/ramdisk/upper
+    mkdir -p /mnt/ramdisk/work
+    mount -t overlay overlay -o lowerdir=/squash_root,upperdir=/mnt/ramdisk/upper,workdir=/mnt/ramdisk/work /squash_root
+
+    switch
+}
+
+run_hook() {
+    cmdline=$(cat /proc/cmdline)
+    if echo "$cmdline" | grep -q "boottoram"; then
+        stuff
+    fi
+#    read -n 1 -s
+}
