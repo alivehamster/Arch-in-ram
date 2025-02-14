@@ -5,10 +5,6 @@ switch() {
     mkdir -p /squash_root/sys
     mkdir -p /squash_root/dev
 
-#    mount -t proc proc /squash_root/proc
-#    mount -t sysfs sys /squash_root/sys
-#    mount -t devtmpfs dev /squash_root/dev
-
     # Switch root to /squash_root
     exec switch_root /squash_root /sbin/init
 }
@@ -37,5 +33,4 @@ run_hook() {
     if echo "$cmdline" | grep -q "boottoram"; then
         stuff
     fi
-#    read -n 1 -s
 }

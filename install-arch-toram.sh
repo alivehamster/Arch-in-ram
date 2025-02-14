@@ -250,9 +250,7 @@ rm $rootfsloc/root/chroot-script.sh
 rm -r $rootfsloc/root/systemd-boot
 
 # unmount the filesystem
-# lsof +D /mnt/arch-install
-# fuser -km /mnt/arch-install
-umount -R $rootfsloc
+# umount -R --lazy $rootfsloc
 
 # exit the original script
 echo "Finished"
