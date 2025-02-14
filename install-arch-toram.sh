@@ -21,7 +21,9 @@ fi
 # update system clock
 timedatectl
 
-# partition disks and format
+# prompts
+
+# select drive
 echo
 echo "select a drive to install to"
 echo "**All data on the drive will be deleted**"
@@ -40,6 +42,7 @@ select drive in $(lsblk -d -n -o NAME); do
   fi
 done
 
+# select partition size
 default_efi_size="512M"
 echo "Enter the size of the EFI partition:"
 read -p "size{K,M,G,T,P} (rec: 512M) :" efi_part_size
@@ -50,14 +53,46 @@ echo
 
 default_root_size="4G"
 echo "Enter the size of the root partition:"
-echo "This will be transfered to ram so the smaller the better"
-read -p "size{K,M,G,T,P} (rec: 4G) :" root_part_size
+echo "This should only be used to install the inital packages"
+read -p "size{K,M,G,T,P} (rec: 4G) : " root_part_size
 root_part_size=${root_part_size:-$default_root_size}
 echo "root partition size set to: $root_part_size"
-read -s -p "Press Enter to continue..."
+
+echo
+
+default_ramdisk_size="4G"
+echo "Enter the size of the ramdisk:"
+echo "This is the amount of ram space the filesystem will have access to"
+read -p "size{K,M,G,T,P} (rec: 4G) : " ramdisk_size
+ramdisk_size=${ramdisk_size:-$default_ramdisk_size}
+echo "root partition size set to: $ramdisk_size"
+
+# select root filesystem mount location
+default_root_loc="/mnt/arch-install"
+echo
+echo "default: $default_root_loc"
+read -p "directory to mount filesystem:" rootfsloc
+rootfsloc=${rootfsloc:-$default_root_loc}
+echo "root filesystem mount location: $rootfsloc"
+
+# select packages to install
+echo
+echo "list packages to install seperated with spaces ex: networkmanager nano vi"
+read -p "packages to install:" packages
+
+# select hostname
+echo
+read -p "hostname: " hostname
+
+# set root password
+echo
+read -p "Enter root password: " root_password
+
+# enable secure boot
+echo
+read -p "Add secureboot with shim boot (y/n): " secureboot_choice
 
 # Create partition using fdisk
-
 (
 echo g # Create a new empty GPT partition table
 echo n # Add a new partition
@@ -86,34 +121,25 @@ mkfs.ext4 /dev/${drive}2
 mkfs.ext4 /dev/${drive}3
 
 # mount filesystem
-default_root_loc="/mnt/arch-install"
-echo 
-echo "default: $default_root_loc"
-read -p "directory to mount filesystem:" rootfsloc
-rootfsloc=${rootfsloc:-$default_root_loc}
-echo "root filesystem mount location: $rootfsloc"
-read -s -p "Press Enter to continue..."
-
 mount --mkdir /dev/${drive}2 $rootfsloc
 mount --mkdir /dev/${drive}1 $rootfsloc/boot
 
 # install packages
-echo "list packages to install seperated with spaces ex: networkmanager nano vi"
-read -p "packages to install:" packages
-pacstrap -K $rootfsloc base linux linux-firmware base-devel git squashfs-tools amd-ucode intel-ucode polkit sudo reflector $packages
+pacstrap -K $rootfsloc base linux linux-firmware base-devel git squashfs-tools amd-ucode intel-ucode polkit sudo $packages
 
 # generate fstab only include boot
 genfstab -U $rootfsloc | grep -A 1 "^# /dev/${drive}1" >> $rootfsloc/etc/fstab
 
+part3_uuid=$(blkid -s UUID -o value /dev/${drive}3)
 # copy squashfs script to new root
 cp ./scripts/squashfs.sh $rootfsloc/root/squashfs.sh
+sed -i "s/part3-uuid/$part3_uuid/g" $rootfsloc/root/squashfs.sh
 
 # copy mkinitcpio hooks to new root
-part3_uuid=$(blkid -s UUID -o value /dev/${drive}3)
-
 cp ./scripts/install/bootram $rootfsloc/etc/initcpio/install/bootram
 cp ./scripts/hooks/bootram $rootfsloc/etc/initcpio/hooks/bootram
 sed -i "s/part3-uuid/$part3_uuid/g" $rootfsloc/etc/initcpio/hooks/bootram
+sed -i "s/ramdisk-size/$ramdisk_size/g" $rootfsloc/etc/initcpio/hooks/bootram
 chmod +x $rootfsloc/etc/initcpio/install/bootram
 chmod +x $rootfsloc/etc/initcpio/hooks/bootram
 
@@ -138,7 +164,7 @@ sed -i 's/\(HOOKS=(.*\))/\1 bootram)/' $rootfsloc/etc/mkinitcpio.conf
 cp -r ./scripts/systemd-boot $rootfsloc/root/systemd-boot
 
 # create a temporary script to be executed within the chroot environment
-cat <<'EOF' > $rootfsloc/root/chroot-script.sh
+cat <<EOF > $rootfsloc/root/chroot-script.sh
 #!/bin/bash
 
 # set timezone
@@ -153,34 +179,32 @@ locale-gen
 echo "LANG=en_US.UTF-8" > /etc/locale.conf
 
 # hostname
-read -p "hostname: " hostname
 echo $hostname > /etc/hostname
 
 # make initial ramdisk
 mkinitcpio -P
 
 # set root password
-passwd
+echo "root:$root_password" | chpasswd
+# passwd
 
 # install and configure systemd-boot
 bootctl install
 
-part2_uuid=$(blkid -s UUID -o value /dev/${drive}2)
+part2_uuid=\$(blkid -s UUID -o value /dev/${drive}2)
 
 cp /root/systemd-boot/loader.conf /boot/loader/loader.conf
 cp /root/systemd-boot/entries/arch.conf /boot/loader/entries/arch.conf
-cp /root/systemd-boot/entries/arch-toram.conf /boot/loader/entries/arch-toram.conf
+cp /root/systemd-boot/entries/arch-ram.conf /boot/loader/entries/arch-ram.conf
 cp /root/systemd-boot/entries/arch-fallback.conf /boot/loader/entries/arch-fallback.conf
 
-sed -i "s/part2-uuid/$part2_uuid/g" /boot/loader/entries/arch.conf
-sed -i "s/part2-uuid/$part2_uuid/g" /boot/loader/entries/arch-fallback.conf
+sed -i "s/part2-uuid/\$part2_uuid/g" /boot/loader/entries/arch.conf
+sed -i "s/part2-uuid/\$part2_uuid/g" /boot/loader/entries/arch-fallback.conf
 
-read -p "Add secureboot with shim boot (y/n): " secureboot_choice
 if [[ "$secureboot_choice" != "y" ]]; then
   echo "Secure Boot support will not be added"
   # execute squashfs.sh
   bash /root/squashfs.sh
-  echo "done"
   exit 0
 fi
 
@@ -212,7 +236,6 @@ cp /usr/share/shim-signed/mmx64.efi /boot/EFI/BOOT/
 # execute squashfs.sh
 bash /root/squashfs.sh
 
-echo "done"
 exit 0
 EOF
 
@@ -226,8 +249,11 @@ arch-chroot $rootfsloc /root/chroot-script.sh
 rm $rootfsloc/root/chroot-script.sh
 rm -r $rootfsloc/root/systemd-boot
 
-# unmount filesystem
-# umount -R $rootfsloc
+# unmount the filesystem
+# lsof +D /mnt/arch-install
+# fuser -km /mnt/arch-install
+umount -R $rootfsloc
 
 # exit the original script
+echo "Finished"
 exit 0
