@@ -11,7 +11,7 @@ switch() {
 
 stuff() {
     mkdir -p /mnt/stuff
-    mount UUID="part3-uuid" /mnt/stuff
+    mount UUID="storage" /mnt/stuff
 
     mkdir -p /mnt/ramdisk
     mount -t tmpfs -o size=ramdisk-size tmpfs /mnt/ramdisk
@@ -29,8 +29,5 @@ stuff() {
 }
 
 run_hook() {
-    cmdline=$(cat /proc/cmdline)
-    if echo "$cmdline" | grep -q "boottoram"; then
-        stuff
-    fi
+    stuff
 }

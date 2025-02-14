@@ -4,7 +4,7 @@
 
 echo "Make squashfs image of root filesystem"
 
-part_uuid="part3-uuid"
+part_uuid="storage"
 
 # Check if the UUID exists
 if ! blkid | grep -q "UUID=\"$part_uuid\""; then

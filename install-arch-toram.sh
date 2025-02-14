@@ -51,14 +51,14 @@ echo "EFI partition size set to: $efi_part_size"
 
 echo
 
-default_root_size="4G"
-echo "Enter the size of the root partition:"
-echo "This should only be used to install the inital packages"
-read -p "size{K,M,G,T,P} (rec: 4G) : " root_part_size
-root_part_size=${root_part_size:-$default_root_size}
-echo "root partition size set to: $root_part_size"
+# default_root_size="4G"
+# echo "Enter the size of the root partition:"
+# echo "This should only be used to install the inital packages"
+# read -p "size{K,M,G,T,P} (rec: 4G) : " root_part_size
+# root_part_size=${root_part_size:-$default_root_size}
+# echo "root partition size set to: $root_part_size"
 
-echo
+# echo
 
 default_ramdisk_size="4G"
 echo "Enter the size of the ramdisk:"
@@ -103,13 +103,13 @@ echo t # Change partition type
 echo 1 # EFI System
 echo n # Add a new partition
 echo 2 # Partition number
-echo   # First sector (Accept default: varies)
-echo +$root_part_size # Last sector (Accept default: varies)
-echo t # Change partition type
-echo 2 # Select partition 2
-echo 23 # Linux root (x86-64)
-echo n # Add a new partition
-echo 3 # Partition number
+# echo   # First sector (Accept default: varies)
+# echo +$root_part_size # Last sector (Accept default: varies)
+# echo t # Change partition type
+# echo 2 # Select partition 2
+# echo 23 # Linux root (x86-64)
+# echo n # Add a new partition
+# echo 3 # Partition number
 echo   # First sector (Accept default: varies)
 echo   # Last sector (Accept default: varies)
 echo w # Write changes
@@ -118,7 +118,7 @@ echo w # Write changes
 # format partitions
 mkfs.fat -F32 /dev/${drive}1
 mkfs.ext4 /dev/${drive}2
-mkfs.ext4 /dev/${drive}3
+# mkfs.ext4 /dev/${drive}3
 
 # mount filesystem
 mount --mkdir /dev/${drive}2 $rootfsloc
@@ -130,15 +130,15 @@ pacstrap -K $rootfsloc base linux linux-firmware base-devel git squashfs-tools a
 # generate fstab only include boot
 genfstab -U $rootfsloc | grep -A 1 "^# /dev/${drive}1" >> $rootfsloc/etc/fstab
 
-part3_uuid=$(blkid -s UUID -o value /dev/${drive}3)
+fs_uuid=$(blkid -s UUID -o value /dev/${drive}2)
 # copy squashfs script to new root
 cp ./scripts/squashfs.sh $rootfsloc/root/squashfs.sh
-sed -i "s/part3-uuid/$part3_uuid/g" $rootfsloc/root/squashfs.sh
+sed -i "s/storage/$fs_uuid/g" $rootfsloc/root/squashfs.sh
 
 # copy mkinitcpio hooks to new root
 cp ./scripts/install/bootram $rootfsloc/etc/initcpio/install/bootram
 cp ./scripts/hooks/bootram $rootfsloc/etc/initcpio/hooks/bootram
-sed -i "s/part3-uuid/$part3_uuid/g" $rootfsloc/etc/initcpio/hooks/bootram
+sed -i "s/storage/$fs_uuid/g" $rootfsloc/etc/initcpio/hooks/bootram
 sed -i "s/ramdisk-size/$ramdisk_size/g" $rootfsloc/etc/initcpio/hooks/bootram
 chmod +x $rootfsloc/etc/initcpio/install/bootram
 chmod +x $rootfsloc/etc/initcpio/hooks/bootram
@@ -191,20 +191,14 @@ echo "root:$root_password" | chpasswd
 # install and configure systemd-boot
 bootctl install
 
-part2_uuid=\$(blkid -s UUID -o value /dev/${drive}2)
-
 cp /root/systemd-boot/loader.conf /boot/loader/loader.conf
 cp /root/systemd-boot/entries/arch.conf /boot/loader/entries/arch.conf
-cp /root/systemd-boot/entries/arch-ram.conf /boot/loader/entries/arch-ram.conf
 cp /root/systemd-boot/entries/arch-fallback.conf /boot/loader/entries/arch-fallback.conf
-
-sed -i "s/part2-uuid/\$part2_uuid/g" /boot/loader/entries/arch.conf
-sed -i "s/part2-uuid/\$part2_uuid/g" /boot/loader/entries/arch-fallback.conf
 
 if [[ "$secureboot_choice" != "y" ]]; then
   echo "Secure Boot support will not be added"
-  # execute squashfs.sh
-  bash /root/squashfs.sh
+  # make squashfs filesystem
+  mksquashfs / /root/rootfs.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /boot
   exit 0
 fi
 
@@ -233,8 +227,8 @@ mv /boot/EFI/BOOT/BOOTX64.EFI /boot/EFI/BOOT/grubx64.efi
 cp /usr/share/shim-signed/shimx64.efi /boot/EFI/BOOT/BOOTX64.EFI
 cp /usr/share/shim-signed/mmx64.efi /boot/EFI/BOOT/
 
-# execute squashfs.sh
-bash /root/squashfs.sh
+# make squashfs filesystem
+mksquashfs / /root/rootfs.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /boot
 
 exit 0
 EOF
@@ -245,12 +239,16 @@ chmod +x $rootfsloc/root/chroot-script.sh
 # chroot into the new system and execute the script
 arch-chroot $rootfsloc /root/chroot-script.sh
 
-# clean up
-rm $rootfsloc/root/chroot-script.sh
-rm -r $rootfsloc/root/systemd-boot
+cp $rootfsloc/root/rootfs.sfs ./
 
 # unmount the filesystem
-# umount -R --lazy $rootfsloc
+umount -R $rootfsloc
+
+mkfs.ext4 /dev/${drive}2
+mount /dev/${drive}2 $rootfsloc
+mv ./rootfs.sfs $rootfsloc
+
+umount -R $rootfsloc
 
 # exit the original script
 echo "Finished"
