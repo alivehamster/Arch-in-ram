@@ -131,6 +131,7 @@ pacstrap -K $rootfsloc base linux linux-firmware base-devel git squashfs-tools a
 genfstab -U $rootfsloc | grep -A 1 "^# /dev/${drive}1" >> $rootfsloc/etc/fstab
 
 fs_uuid=$(blkid -s UUID -o value /dev/${drive}2)
+part_uuid=$(blkid -s PARTUUID -o value /dev/${drive}2)
 
 # copy squashfs script to new root
 cp ./scripts/squashfs.sh $rootfsloc/root/squashfs.sh
@@ -139,14 +140,14 @@ sed -i "s/storage/$fs_uuid/g" $rootfsloc/root/squashfs.sh
 # copy mkinitcpio hooks to new root
 cp ./scripts/install/bootram $rootfsloc/etc/initcpio/install/bootram
 cp ./scripts/hooks/bootram $rootfsloc/etc/initcpio/hooks/bootram
-sed -i "s/storage/$fs_uuid/g" $rootfsloc/etc/initcpio/hooks/bootram
+sed -i "s/part-uuid/$part_uuid/g" $rootfsloc/etc/initcpio/hooks/bootram
 sed -i "s/ramdisk-size/$ramdisk_size/g" $rootfsloc/etc/initcpio/hooks/bootram
 chmod +x $rootfsloc/etc/initcpio/install/bootram
 chmod +x $rootfsloc/etc/initcpio/hooks/bootram
 
 # modify mkinitcpio.conf
 if grep -q "^MODULES=" $rootfsloc/etc/mkinitcpio.conf; then
-  sed -i 's/^MODULES=(\(.*\))/MODULES=(\1 squashfs overlay)/' $rootfsloc/etc/mkinitcpio.conf
+  sed -i 's/^MODULES=(\(.*\))/MODULES=(\1squashfs overlay)/' $rootfsloc/etc/mkinitcpio.conf
 else
   echo 'MODULES=(squashfs overlay)' >> $rootfsloc/etc/mkinitcpio.conf
 fi
@@ -288,5 +289,5 @@ fi
 # Flush file system buffers
 sync
 
-echo $fs_uuid
+echo $part_uuid
 echo "Done"

@@ -4,6 +4,8 @@ switch() {
     mkdir -p /squash_root/proc
     mkdir -p /squash_root/sys
     mkdir -p /squash_root/dev
+    mkdir -p /squash_root/run
+    mkdir -p /squash_root/tmp
 
     # Switch root to /squash_root
     exec switch_root /squash_root /sbin/init
@@ -11,10 +13,16 @@ switch() {
 
 stuff() {
     mkdir -p /mnt/stuff
-    mount UUID="storage" /mnt/stuff
+    mount PARTUUID="part-uuid" /mnt/stuff
 
     mkdir -p /mnt/ramdisk
     mount -t tmpfs -o size=ramdisk-size tmpfs /mnt/ramdisk
+
+    # Check if rootfs.sfs exists before attempting to copy
+    if [ ! -f /mnt/stuff/rootfs.sfs ]; then
+        echo "rootfs.sfs not found!"
+        return 1
+    fi
 
     cp /mnt/stuff/rootfs.sfs /mnt/ramdisk/
     mkdir -p /squash_root
