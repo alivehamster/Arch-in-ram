@@ -131,6 +131,7 @@ pacstrap -K $rootfsloc base linux linux-firmware base-devel git squashfs-tools a
 genfstab -U $rootfsloc | grep -A 1 "^# /dev/${drive}1" >> $rootfsloc/etc/fstab
 
 fs_uuid=$(blkid -s UUID -o value /dev/${drive}2)
+
 # copy squashfs script to new root
 cp ./scripts/squashfs.sh $rootfsloc/root/squashfs.sh
 sed -i "s/storage/$fs_uuid/g" $rootfsloc/root/squashfs.sh
@@ -160,7 +161,7 @@ sed -i 's/\(autodetect\)/keyboard block \1/' $rootfsloc/etc/mkinitcpio.conf
 # add bootram hook at the end
 sed -i 's/\(HOOKS=(.*\))/\1 bootram)/' $rootfsloc/etc/mkinitcpio.conf
 
-# add systemd-boot config to tmp
+# add systemd-boot config
 cp -r ./scripts/systemd-boot $rootfsloc/root/systemd-boot
 
 # create a temporary script to be executed within the chroot environment
@@ -239,17 +240,53 @@ chmod +x $rootfsloc/root/chroot-script.sh
 # chroot into the new system and execute the script
 arch-chroot $rootfsloc /root/chroot-script.sh
 
+safe_unmount() {
+  local mount_point="$1"
+
+  if [ -z "$mount_point" ]; then
+      echo "Error: No mount point specified"
+      return 1
+  fi
+
+  # Sync any cached writes to disk
+  sync
+
+  lsof | grep "$rootfsloc" | awk '{print $2}' | xargs -r kill
+
+  # Attempt recursive unmount
+  if ! umount -R "$mount_point" 2>/dev/null; then
+      echo "Regular unmount failed, attempting lazy recursive unmount..."
+      umount -Rl "$mount_point"
+  fi
+
+  # Final check
+  if mountpoint -q "$mount_point"; then
+      echo "Warning: $mount_point is still mounted"
+      return 1
+  fi
+
+  return 0
+}
+
 cp $rootfsloc/root/rootfs.sfs ./
+safe_unmount "$rootfsloc/boot"
+rm -rf "$rootfsloc"/*
+mv ./rootfs.sfs "$rootfsloc"
 
 # unmount the filesystem
-umount -R $rootfsloc
+safe_unmount "$rootfsloc"
 
-mkfs.ext4 /dev/${drive}2
-mount /dev/${drive}2 $rootfsloc
-mv ./rootfs.sfs $rootfsloc
 
-umount -R $rootfsloc
+# Double check and force unmount if needed
+if mountpoint -q "$rootfsloc"; then
+  lsof | grep "$rootfsloc" | awk '{print $2}' | xargs -r kill -9
+  sleep 2
+  umount -lf "$rootfsloc"
+  sleep 2
+fi
 
-# exit the original script
-echo "Finished"
-exit 0
+# Flush file system buffers
+sync
+
+echo $fs_uuid
+echo "Done"
