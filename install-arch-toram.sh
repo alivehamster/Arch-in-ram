@@ -152,12 +152,14 @@ else
   echo 'MODULES=(squashfs overlay)' >> $rootfsloc/etc/mkinitcpio.conf
 fi
 
-# remove keyboard and block hooks if they exist
-sed -i 's/\<keyboard\>//g' $rootfsloc/etc/mkinitcpio.conf
-sed -i 's/\<block\>//g' $rootfsloc/etc/mkinitcpio.conf
+# remove autodetect for compatibility on multiple systems
+sed -i 's/\<autodetect\>//g' $rootfsloc/etc/mkinitcpio.conf
+# # remove keyboard and block hooks if they exist
+# sed -i 's/\<keyboard\>//g' $rootfsloc/etc/mkinitcpio.conf
+# sed -i 's/\<block\>//g' $rootfsloc/etc/mkinitcpio.conf
 
-# place keyboard and block hooks behind autodetect
-sed -i 's/\(autodetect\)/keyboard block \1/' $rootfsloc/etc/mkinitcpio.conf
+# # place keyboard and block hooks behind autodetect
+# sed -i 's/\(autodetect\)/keyboard block \1/' $rootfsloc/etc/mkinitcpio.conf
 
 # add bootram hook at the end
 sed -i 's/\(HOOKS=(.*\))/\1 bootram)/' $rootfsloc/etc/mkinitcpio.conf
