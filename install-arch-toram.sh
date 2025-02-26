@@ -88,6 +88,9 @@ read -p "hostname: " hostname
 echo
 read -p "Enter root password: " root_password
 
+echo
+read -p "Enter squashfs readonly filesystem name: " squashfs_name
+
 # enable secure boot
 echo
 read -p "Add secureboot with shim boot (y/n): " secureboot_choice
@@ -125,7 +128,7 @@ mount --mkdir /dev/${drive}2 $rootfsloc
 mount --mkdir /dev/${drive}1 $rootfsloc/boot
 
 # install packages
-pacstrap -K $rootfsloc base linux linux-firmware base-devel git squashfs-tools amd-ucode intel-ucode polkit sudo $packages
+pacstrap -K $rootfsloc base linux linux-firmware base-devel git squashfs-tools amd-ucode intel-ucode sudo $packages
 
 # generate fstab only include boot
 genfstab -U $rootfsloc | grep -A 1 "^# /dev/${drive}1" >> $rootfsloc/etc/fstab
@@ -198,11 +201,12 @@ bootctl install
 cp /root/systemd-boot/loader.conf /boot/loader/loader.conf
 cp /root/systemd-boot/entries/arch.conf /boot/loader/entries/arch.conf
 cp /root/systemd-boot/entries/arch-fallback.conf /boot/loader/entries/arch-fallback.conf
+rm -rf /root/systemd-boot
 
 if [[ "$secureboot_choice" != "y" ]]; then
   echo "Secure Boot support will not be added"
   # make squashfs filesystem
-  mksquashfs / /root/rootfs.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /boot
+  mksquashfs / /root/rootfs.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /boot /root/chroot-script.sh
   exit 0
 fi
 
@@ -232,7 +236,7 @@ cp /usr/share/shim-signed/shimx64.efi /boot/EFI/BOOT/BOOTX64.EFI
 cp /usr/share/shim-signed/mmx64.efi /boot/EFI/BOOT/
 
 # make squashfs filesystem
-mksquashfs / /root/rootfs.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /boot
+mksquashfs / /root/rootfs.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /boot /root/chroot-script.sh
 
 exit 0
 EOF
@@ -254,12 +258,13 @@ safe_unmount() {
   # Sync any cached writes to disk
   sync
 
-  lsof | grep "$rootfsloc" | awk '{print $2}' | xargs -r kill
+  fuser -k -m "$mount_point" 2>/dev/null
+  sleep 1
 
   # Attempt recursive unmount
   if ! umount -R "$mount_point" 2>/dev/null; then
-      echo "Regular unmount failed, attempting lazy recursive unmount..."
-      umount -Rl "$mount_point"
+    echo "Regular unmount failed, attempting lazy recursive unmount..."
+    umount -Rl "$mount_point"
   fi
 
   # Final check
@@ -274,7 +279,8 @@ safe_unmount() {
 cp $rootfsloc/root/rootfs.sfs ./
 safe_unmount "$rootfsloc/boot"
 rm -rf "$rootfsloc"/*
-mv ./rootfs.sfs "$rootfsloc"
+mkdir -p "$rootfsloc/squashfs"
+mv ./rootfs.sfs "$rootfsloc/squashfs/$squashfs_name.sfs"
 
 # unmount the filesystem
 safe_unmount "$rootfsloc"
@@ -291,5 +297,4 @@ fi
 # Flush file system buffers
 sync
 
-echo $part_uuid
 echo "Done"

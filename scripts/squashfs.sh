@@ -15,19 +15,22 @@ fi
 MOUNT_POINT=$(findmnt -nr -o TARGET -S UUID=$part_uuid)
 
 if [ -z "$MOUNT_POINT" ]; then
-  echo "UUID=$part_uuid is not mounted. Mounting it at /mnt/idk."
-  mount --mkdir UUID=$part_uuid /mnt/idk
-  MOUNT_POINT="/mnt/idk"
+  echo "UUID=$part_uuid is not mounted. Mounting it at /mnt/$part_uuid."
+  mount --mkdir UUID=$part_uuid /mnt/$part_uuid
+  MOUNT_POINT="/mnt/$part_uuid"
+  x=1
 else
   echo "UUID=$part_uuid is mounted at $MOUNT_POINT."
+  x=0
 fi
 
-# Save the location to a variable
-MOUNT_LOCATION=$MOUNT_POINT
+echo
+read -p "Enter the name of the squashfs image: " squashfs_name
 
-# Output the location
-echo "Mount location: $MOUNT_LOCATION"
+mksquashfs / $MOUNT_POINT/squashfs/rootfs-tmp.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /boot
 
-mksquashfs / $MOUNT_POINT/rootfs-tmp.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /boot
+mv $MOUNT_POINT/squashfs/rootfs-tmp.sfs $MOUNT_POINT/squashfs/$squashfs_name.sfs
 
-mv $MOUNT_POINT/rootfs-tmp.sfs $MOUNT_POINT/rootfs.sfs
+if [ $x -eq 1 ]; then
+  umount -l $MOUNT_POINT
+fi
