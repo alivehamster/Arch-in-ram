@@ -1,11 +1,12 @@
 #!/bin/bash
 
-part_uuid="storage-uuid"
+storage_uuid="storage-uuid"
 boot_uuid="boot-uuid"
+part_uuid="part-uuid"
 
 # Check if the UUID exists
-if ! blkid | grep -q "UUID=\"$part_uuid\""; then
-  echo "Error: UUID=$part_uuid does not exist."
+if ! blkid | grep -q "UUID=\"$storage_uuid\""; then
+  echo "Error: UUID=$storage_uuid does not exist."
   exit 1
 fi
 
@@ -14,16 +15,16 @@ if ! blkid | grep -q "UUID=\"$boot_uuid\""; then
   exit 1
 fi
 
-MOUNT_POINT=$(findmnt -nr -o TARGET -S UUID=$part_uuid)
+MOUNT_POINT=$(findmnt -nr -o TARGET -S UUID=$storage_uuid)
 BOOT_MOUNT=$(findmnt -nr -o TARGET -S UUID=$boot_uuid)
 
 if [ -z "$MOUNT_POINT" ]; then
-  echo "UUID=$part_uuid is not mounted. Mounting it at /mnt/$part_uuid."
-  mount --mkdir UUID=$part_uuid /mnt/$part_uuid
-  MOUNT_POINT="/mnt/$part_uuid"
+  echo "UUID=$storage_uuid is not mounted. Mounting it at /mnt/$storage_uuid."
+  mount --mkdir UUID=$storage_uuid /mnt/$storage_uuid
+  MOUNT_POINT="/mnt/$storage_uuid"
   x=1
 else
-  echo "UUID=$part_uuid is mounted at $MOUNT_POINT."
+  echo "UUID=$storage_uuid is mounted at $MOUNT_POINT."
   x=0
 fi
 
