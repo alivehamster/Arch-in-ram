@@ -15,8 +15,13 @@ stuff() {
     mkdir -p /mnt/stuff
     mount PARTUUID="part-uuid" /mnt/stuff
 
+    # use zram to create a ramdisk
+    modprobe zram
     mkdir -p /mnt/ramdisk
-    mount -t tmpfs -o size=ramdisk-size tmpfs /mnt/ramdisk
+    zramctl /dev/zram0 --algorithm zstd --size ramdisk-size
+    mkfs.ext4 /dev/zram0
+    mount /dev/zram0 /mnt/ramdisk
+    # mount -t tmpfs -o size=ramdisk-size tmpfs /mnt/ramdisk
 
     cp /mnt/stuff/squashfs/squash-name.sfs /mnt/ramdisk/rootfs.sfs
     mkdir -p /squash_root

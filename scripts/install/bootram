@@ -1,6 +1,11 @@
 #!/bin/sh
 
 build() {
+    add_module "squashfs"
+    add_module "overlay"
+    add_module "zram"
+    add_binary "/usr/bin/mkfs.ext4"
+    # add_binary "/usr/bin/zramctl"
     add_runscript
 }
 

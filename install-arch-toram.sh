@@ -141,7 +141,7 @@ part_uuid=$(blkid -s PARTUUID -o value /dev/${drive}2)
 cp ./scripts/squashfs.sh $rootfsloc/usr/local/bin/squashfs
 sed -i "s/storage-uuid/$fs_uuid/g" $rootfsloc/usr/local/bin/squashfs
 sed -i "s/boot-uuid/$boot_uuid/g" $rootfsloc/usr/local/bin/squashfs
-sed -i "s/part_uuid/$part_uuid/g" $rootfsloc/usr/local/bin/squashfs
+sed -i "s/part-uuid/$part_uuid/g" $rootfsloc/usr/local/bin/squashfs
 chmod +x $rootfsloc/usr/local/bin/squashfs
 
 # copy mkinitcpio hooks to new root
@@ -158,20 +158,14 @@ chmod +x $rootfsloc/etc/initcpio/install/bootram
 chmod +x $rootfsloc/etc/initcpio/hooks/bootram
 
 # modify mkinitcpio.conf
-if grep -q "^MODULES=" $rootfsloc/etc/mkinitcpio.conf; then
-  sed -i 's/^MODULES=(\(.*\))/MODULES=(\1squashfs overlay)/' $rootfsloc/etc/mkinitcpio.conf
-else
-  echo 'MODULES=(squashfs overlay)' >> $rootfsloc/etc/mkinitcpio.conf
-fi
+# if grep -q "^MODULES=" $rootfsloc/etc/mkinitcpio.conf; then
+#   sed -i 's/^MODULES=(\(.*\))/MODULES=(\1squashfs overlay)/' $rootfsloc/etc/mkinitcpio.conf
+# else
+#   echo 'MODULES=(squashfs overlay)' >> $rootfsloc/etc/mkinitcpio.conf
+# fi
 
 # remove autodetect for compatibility on multiple systems
 sed -i 's/\<autodetect\>//g' $rootfsloc/etc/mkinitcpio.conf
-# # remove keyboard and block hooks if they exist
-# sed -i 's/\<keyboard\>//g' $rootfsloc/etc/mkinitcpio.conf
-# sed -i 's/\<block\>//g' $rootfsloc/etc/mkinitcpio.conf
-
-# # place keyboard and block hooks behind autodetect
-# sed -i 's/\(autodetect\)/keyboard block \1/' $rootfsloc/etc/mkinitcpio.conf
 
 # add bootram hook at the end
 sed -i 's/\(HOOKS=(.*\))/\1 bootram)/' $rootfsloc/etc/mkinitcpio.conf

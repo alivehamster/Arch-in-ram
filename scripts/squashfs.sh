@@ -41,7 +41,7 @@ fi
 echo
 echo "Select an option:"
 echo "1) Create new rootfs"
-echo "2) Use existing rootfs"
+echo "2) Save to existing rootfs"
 echo "3) Delete rootfs"
 read -p "Enter choice [1-3]: " choice
 
