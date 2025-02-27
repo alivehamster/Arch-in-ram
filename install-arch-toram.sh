@@ -43,9 +43,9 @@ select drive in $(lsblk -d -n -o NAME); do
 done
 
 # select partition size
-default_efi_size="512M"
+default_efi_size="1G"
 echo "Enter the size of the EFI partition:"
-read -p "size{K,M,G,T,P} (rec: 512M) :" efi_part_size
+read -p "size{K,M,G,T,P} (rec: 1G) :" efi_part_size
 efi_part_size=${efi_part_size:-$default_efi_size}
 echo "EFI partition size set to: $efi_part_size"
 
@@ -131,20 +131,28 @@ mount --mkdir /dev/${drive}1 $rootfsloc/boot
 pacstrap -K $rootfsloc base linux linux-firmware base-devel git squashfs-tools amd-ucode intel-ucode sudo $packages
 
 # generate fstab only include boot
-genfstab -U $rootfsloc | grep -A 1 "^# /dev/${drive}1" >> $rootfsloc/etc/fstab
+# genfstab -U $rootfsloc | grep -A 1 "^# /dev/${drive}1" >> $rootfsloc/etc/fstab
 
+boot_uuid=$(blkid -s UUID -o value /dev/${drive}1)
 fs_uuid=$(blkid -s UUID -o value /dev/${drive}2)
 part_uuid=$(blkid -s PARTUUID -o value /dev/${drive}2)
 
 # copy squashfs script to new root
-cp ./scripts/squashfs.sh $rootfsloc/root/squashfs.sh
-sed -i "s/storage/$fs_uuid/g" $rootfsloc/root/squashfs.sh
+cp ./scripts/squashfs.sh $rootfsloc/usr/local/bin/squashfs
+sed -i "s/storage-uuid/$fs_uuid/g" $rootfsloc/usr/local/bin/squashfs
+sed -i "s/boot-uuid/$boot_uuid/g" $rootfsloc/usr/local/bin/squashfs
+chmod +x $rootfsloc/usr/local/bin/squashfs
 
 # copy mkinitcpio hooks to new root
+mkdir -p $rootfsloc/usr/local/share/squashfs-stuff
+cp ./scripts/hooks/bootram $rootfsloc/usr/local/share/squashfs-stuff
+
 cp ./scripts/install/bootram $rootfsloc/etc/initcpio/install/bootram
 cp ./scripts/hooks/bootram $rootfsloc/etc/initcpio/hooks/bootram
 sed -i "s/part-uuid/$part_uuid/g" $rootfsloc/etc/initcpio/hooks/bootram
 sed -i "s/ramdisk-size/$ramdisk_size/g" $rootfsloc/etc/initcpio/hooks/bootram
+sed -i "s/squash-name/$squashfs_name/g" $rootfsloc/etc/initcpio/hooks/bootram
+
 chmod +x $rootfsloc/etc/initcpio/install/bootram
 chmod +x $rootfsloc/etc/initcpio/hooks/bootram
 
@@ -168,11 +176,21 @@ sed -i 's/\<autodetect\>//g' $rootfsloc/etc/mkinitcpio.conf
 sed -i 's/\(HOOKS=(.*\))/\1 bootram)/' $rootfsloc/etc/mkinitcpio.conf
 
 # add systemd-boot config
-cp -r ./scripts/systemd-boot $rootfsloc/root/systemd-boot
+# cp -r ./scripts/systemd-boot $rootfsloc/root/systemd-boot
+mkdir -p $rootfsloc/usr/local/share/squashfs-stuff
+cp -r ./scripts/systemd-boot $rootfsloc/usr/local/share/squashfs-stuff
 
 # create a temporary script to be executed within the chroot environment
 cat <<EOF > $rootfsloc/root/chroot-script.sh
 #!/bin/bash
+
+final() {
+  mksquashfs / /root/rootfs.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /root/chroot-script.sh
+
+  mkdir -p /boot/linux/$squashfs_name
+  mv /boot/vmlinuz-linux /boot/linux/$squashfs_name/vmlinuz-linux
+  mv /boot/initramfs-linux.img /boot/linux/$squashfs_name/initramfs-linux.img
+}
 
 # set timezone
 ln -sf /usr/share/zoneinfo/America/New_York /etc/localtime
@@ -198,15 +216,14 @@ echo "root:$root_password" | chpasswd
 # install and configure systemd-boot
 bootctl install
 
-cp /root/systemd-boot/loader.conf /boot/loader/loader.conf
-cp /root/systemd-boot/entries/arch.conf /boot/loader/entries/arch.conf
-cp /root/systemd-boot/entries/arch-fallback.conf /boot/loader/entries/arch-fallback.conf
-rm -rf /root/systemd-boot
+cp /usr/local/share/squashfs-stuff/systemd-boot/loader.conf /boot/loader/loader.conf
+cp /usr/local/share/squashfs-stuff/systemd-boot/entries/arch.conf /boot/loader/entries/arch-$squashfs_name.conf
+sed -i "s/squash-name/$squashfs_name/g" /boot/loader/entries/arch-$squashfs_name.conf
 
 if [[ "$secureboot_choice" != "y" ]]; then
   echo "Secure Boot support will not be added"
   # make squashfs filesystem
-  mksquashfs / /root/rootfs.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /boot /root/chroot-script.sh
+  final
   exit 0
 fi
 
@@ -236,7 +253,7 @@ cp /usr/share/shim-signed/shimx64.efi /boot/EFI/BOOT/BOOTX64.EFI
 cp /usr/share/shim-signed/mmx64.efi /boot/EFI/BOOT/
 
 # make squashfs filesystem
-mksquashfs / /root/rootfs.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /boot /root/chroot-script.sh
+final
 
 exit 0
 EOF
@@ -245,7 +262,7 @@ EOF
 chmod +x $rootfsloc/root/chroot-script.sh
 
 # chroot into the new system and execute the script
-arch-chroot $rootfsloc /root/chroot-script.sh
+arch-chroot $rootfsloc /bin/bash /root/chroot-script.sh
 
 safe_unmount() {
   local mount_point="$1"

@@ -18,27 +18,7 @@ stuff() {
     mkdir -p /mnt/ramdisk
     mount -t tmpfs -o size=ramdisk-size tmpfs /mnt/ramdisk
 
-    echo "Available squashfs images:"
-    i=1
-    for file in /mnt/stuff/squashfs/*; do
-        echo "$i) $(basename "$file")"
-        eval "file_$i=$file"
-        i=$(( i + 1 ))
-    done
-    
-    max=$(( i - 1 ))
-    printf "Select image number (1-$max): "
-    read selection
-    
-    if [ -n "$selection" ] && [ "$selection" -ge 1 ] && [ "$selection" -le "$max" ]; then
-        eval "selected_file=\$file_$selection"
-        option=$(basename "$selected_file")
-    else
-        echo "Invalid selection, using default (1)"
-        option=$(ls -1 /mnt/stuff/squashfs/ | head -n1)
-    fi
-
-    cp /mnt/stuff/squashfs/$option /mnt/ramdisk/rootfs.sfs
+    cp /mnt/stuff/squashfs/squash-name.sfs /mnt/ramdisk/rootfs.sfs
     mkdir -p /squash_root
     mount -t squashfs /mnt/ramdisk/rootfs.sfs /squash_root -o loop
 
