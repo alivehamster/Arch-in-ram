@@ -17,11 +17,17 @@ stuff() {
 
     # use zram to create a ramdisk
     modprobe zram
+    # 75% of ram zram
+    zramctl /dev/zram0 --algorithm zstd --size "$(free | awk '/Mem:/ {print $2/1.5}')KiB"
+    mkswap -U clear /dev/zram0
+    swapon --discard --priority 100 /dev/zram0
+
+    # zramctl /dev/zram0 --algorithm zstd --size ramdisk-size
+    # mkfs.ext4 /dev/zram0
+    # mount /dev/zram0 /mnt/ramdisk
+    
     mkdir -p /mnt/ramdisk
-    zramctl /dev/zram0 --algorithm zstd --size ramdisk-size
-    mkfs.ext4 /dev/zram0
-    mount /dev/zram0 /mnt/ramdisk
-    # mount -t tmpfs -o size=ramdisk-size tmpfs /mnt/ramdisk
+    mount -t tmpfs -o size=ramdisk-size tmpfs /mnt/ramdisk
 
     cp /mnt/stuff/squashfs/squash-name.sfs /mnt/ramdisk/rootfs.sfs
     mkdir -p /squash_root
