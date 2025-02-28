@@ -4,6 +4,12 @@ storage_uuid="storage-uuid"
 boot_uuid="boot-uuid"
 part_uuid="partition-uuid"
 
+# check if root
+if [ "$EUID" -ne 0 ]; then
+  echo "This script must be run as root. Exiting."
+  exit 1
+fi
+
 # Check if the UUID exists
 if ! blkid | grep -q "UUID=\"$storage_uuid\""; then
   echo "Error: UUID=$storage_uuid does not exist."
