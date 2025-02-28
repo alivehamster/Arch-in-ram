@@ -141,7 +141,7 @@ part_uuid=$(blkid -s PARTUUID -o value /dev/${drive}2)
 cp ./scripts/squashfs.sh $rootfsloc/usr/local/bin/squashfs
 sed -i "s/storage-uuid/$fs_uuid/g" $rootfsloc/usr/local/bin/squashfs
 sed -i "s/boot-uuid/$boot_uuid/g" $rootfsloc/usr/local/bin/squashfs
-sed -i "s/part-uuid/$part_uuid/g" $rootfsloc/usr/local/bin/squashfs
+sed -i "s/partition-uuid/$part_uuid/g" $rootfsloc/usr/local/bin/squashfs
 chmod +x $rootfsloc/usr/local/bin/squashfs
 
 # copy mkinitcpio hooks to new root

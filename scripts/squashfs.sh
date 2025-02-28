@@ -2,7 +2,7 @@
 
 storage_uuid="storage-uuid"
 boot_uuid="boot-uuid"
-part_uuid="part-uuid"
+part_uuid="partition-uuid"
 
 # Check if the UUID exists
 if ! blkid | grep -q "UUID=\"$storage_uuid\""; then
