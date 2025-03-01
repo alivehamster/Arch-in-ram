@@ -109,6 +109,8 @@ case $choice in
     done
 
     # Copy kernel and initramfs
+    rm "$BOOT_MOUNT/linux/$image/vmlinuz-linux"
+    rm "$BOOT_MOUNT/linux/$image/initramfs-linux.img"
     echo "Copying kernel and initramfs files..."
     cp "/boot/vmlinuz-linux" "$BOOT_MOUNT/linux/$image/vmlinuz-linux"
     cp "/boot/initramfs-linux.img" "$BOOT_MOUNT/linux/$image/initramfs-linux.img"
