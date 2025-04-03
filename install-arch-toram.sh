@@ -75,6 +75,13 @@ read -p "directory to mount filesystem:" rootfsloc
 rootfsloc=${rootfsloc:-$default_root_loc}
 echo "root filesystem mount location: $rootfsloc"
 
+# kernel
+echo
+echo "Recommended to use a set kernel version as an updated kernel may cause problems saving the file system"
+echo "https://archive.archlinux.org/packages/l/linux/"
+echo "copy link of a zst file from the above link and paste it here"
+read -p "kernel:" kernel
+
 # select packages to install
 echo
 echo "list packages to install seperated with spaces ex: networkmanager nano vi"
@@ -128,7 +135,7 @@ mount --mkdir /dev/${drive}2 $rootfsloc
 mount --mkdir /dev/${drive}1 $rootfsloc/boot
 
 # install packages
-pacstrap -K $rootfsloc base linux linux-firmware base-devel git squashfs-tools amd-ucode intel-ucode sudo $packages
+pacstrap -K $rootfsloc base linux-firmware mkinitcpio base-devel wget git squashfs-tools amd-ucode intel-ucode sudo $packages
 
 # generate fstab only include boot
 # genfstab -U $rootfsloc | grep -A 1 "^# /dev/${drive}1" >> $rootfsloc/etc/fstab
@@ -186,6 +193,10 @@ final() {
   mv /boot/vmlinuz-linux /boot/linux/$squashfs_name/vmlinuz-linux
   mv /boot/initramfs-linux.img /boot/linux/$squashfs_name/initramfs-linux.img
 }
+
+wget -O kernel.zst $kernel
+pacman -U --noconfirm kernel.zst
+rm kernel.zst
 
 # set timezone
 ln -sf /usr/share/zoneinfo/America/New_York /etc/localtime
