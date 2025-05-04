@@ -1,9 +1,8 @@
 #!/bin/sh
 
 build() {
-    add_module "squashfs"
-    add_module "overlay"
     add_module "zram"
+    add_binary "/usr/bin/unsquashfs"
     add_binary "/usr/bin/zramctl"
     add_binary "/usr/bin/mkswap"
     add_binary "/usr/bin/swapon"

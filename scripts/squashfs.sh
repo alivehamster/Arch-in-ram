@@ -121,8 +121,27 @@ case $choice in
     ;;
     
   3)
-    echo
-    echo "Will do later"
+    # Create array of available images
+    images=()
+    while IFS= read -r file; do
+      images+=("$(basename "$file" .sfs)")
+    done < <(ls -1 $MOUNT_POINT/squashfs/*.sfs)
+
+    # Display selection menu
+    echo "Select a rootfs image:"
+    select image in "${images[@]}"; do
+      if [ -n "$image" ]; then
+        echo "Selected: $image.sfs"
+        break
+      else
+        echo "Invalid selection"
+      fi
+    done    
+
+    rm -r "$BOOT_MOUNT/linux/$image"
+    rm $BOOT_MOUNT/loader/entries/arch-$image.conf
+    rm $MOUNT_POINT/squashfs/$image.sfs
+
     ;;
     
   *)
