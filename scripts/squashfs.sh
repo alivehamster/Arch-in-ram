@@ -79,7 +79,7 @@ case $choice in
     echo "Kernel files copied to $BOOT_MOUNT/linux/$squashfs_name/"
 
     rm $MOUNT_POINT/squashfs/$squashfs_name.sfs
-    mksquashfs / $MOUNT_POINT/squashfs/$squashfs_name.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run
+    mksquashfs / $MOUNT_POINT/squashfs/$squashfs_name.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /lost+found
     echo "Created new rootfs: $squashfs_name.sfs"
     ;;
     
@@ -116,7 +116,7 @@ case $choice in
     cp "/boot/initramfs-linux.img" "$BOOT_MOUNT/linux/$image/initramfs-linux.img"
     echo "Kernel files copied to $BOOT_MOUNT/linux/$image/"
     rm $MOUNT_POINT/squashfs/$image.sfs
-    mksquashfs / $MOUNT_POINT/squashfs/$image.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run
+    mksquashfs / $MOUNT_POINT/squashfs/$image.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /lost+found
     echo "Created new rootfs: $image.sfs"
     ;;
     

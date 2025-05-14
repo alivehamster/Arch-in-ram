@@ -1,11 +1,10 @@
-#!/bin/sh
+#!/bin/ash
 
 build() {
     add_module "zram"
     add_binary "/usr/bin/unsquashfs"
     add_binary "/usr/bin/zramctl"
-    add_binary "/usr/bin/mkswap"
-    add_binary "/usr/bin/swapon"
+    add_binary mkfs.ext4
     add_runscript
 }
 

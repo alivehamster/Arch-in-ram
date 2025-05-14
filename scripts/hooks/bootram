@@ -1,30 +1,24 @@
-#!/bin/sh
+#!/bin/ash
 
-switch() {
-    mkdir -p /squash_root/proc /squash_root/sys /squash_root/dev /squash_root/run /squash_root/tmp
-    exec switch_root /squash_root /sbin/init
-}
-
-stuff() {
+run_hook() {
     mkdir -p /mnt/stuff
     mount PARTUUID="part-uuid" /mnt/stuff
 
-    # use zram to create a ramdisk
     modprobe zram
-    # 75% of ram zram I think
-    zramctl /dev/zram0 --algorithm zstd --size "$(free | awk '/Mem:/ {print $2/(1.5 * 1024 * 1024)}')G"
-    mkswap -U clear /dev/zram0
-    swapon --discard --priority 100 /dev/zram0
 
     mkdir -p /squash_root
-    mount -t tmpfs -o size=ramdisk-size tmpfs /squash_root
+    zramctl /dev/zram0 --algorithm zstd --size ramdisk-size
+    mkfs.ext4 /dev/zram0
+    mount /dev/zram0 /squash_root
+
     unsquashfs -d /squash_root /mnt/stuff/squashfs/squash-name.sfs
+    mkdir -p /squash_root/proc /squash_root/sys /squash_root/dev /squash_root/run /squash_root/tmp
     sync
-    umount -l /mnt/stuff
+    umount /squash_root
+    umount /mnt/stuff
 
-    switch
-}
-
-run_hook() {
-    stuff
+    squash_mount() {
+        mount "/dev/zram0" "$1"
+    }
+    mount_handler=squash_mount
 }
