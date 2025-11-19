@@ -167,6 +167,10 @@ chmod +x $rootfsloc/etc/initcpio/hooks/bootram
 # remove autodetect for compatibility on multiple systems
 sed -i 's/\<autodetect\>//g' $rootfsloc/etc/mkinitcpio.conf
 
+# replace systemd hooks with busybox equivalents for compatibility
+sed -i 's/\<systemd\>/udev/g' $rootfsloc/etc/mkinitcpio.conf
+sed -i 's/\<sd-vconsole\>/consolefont/g' $rootfsloc/etc/mkinitcpio.conf
+
 # add bootram hook at the end
 sed -i 's/\(HOOKS=(.*\))/\1 bootram)/' $rootfsloc/etc/mkinitcpio.conf
 
