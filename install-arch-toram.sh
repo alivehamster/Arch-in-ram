@@ -184,7 +184,7 @@ cat <<EOF > $rootfsloc/root/chroot-script.sh
 #!/bin/bash
 
 final() {
-  mksquashfs / /root/rootfs.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /root/chroot-script.sh /lost+found
+  mksquashfs / /root/rootfs.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /root/chroot-script.sh /lost+found -comp zstd
 
   mkdir -p /boot/linux/$squashfs_name
   mv /boot/vmlinuz-linux /boot/linux/$squashfs_name/vmlinuz-linux
