@@ -2,7 +2,6 @@
 
 storage_uuid="storage-uuid"
 boot_uuid="boot-uuid"
-part_uuid="partition-uuid"
 
 # check if root
 if [ "$EUID" -ne 0 ]; then
@@ -63,7 +62,7 @@ case $choice in
     mkdir -p $BOOT_MOUNT/linux/$squashfs_name
 
     cp /usr/local/share/squashfs-stuff/bootram /etc/initcpio/hooks/bootram
-    sed -i "s/part-uuid/$part_uuid/g" /etc/initcpio/hooks/bootram
+    sed -i "s/uuid/$storage_uuid/g" /etc/initcpio/hooks/bootram
     sed -i "s/ramdisk-size/$ramdisk_size/g" /etc/initcpio/hooks/bootram
     sed -i "s/squash-name/$squashfs_name/g" /etc/initcpio/hooks/bootram
 

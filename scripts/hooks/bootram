@@ -2,7 +2,16 @@
 
 run_hook() {
     mkdir -p /mnt/stuff
-    mount PARTUUID="part-uuid" /mnt/stuff
+
+    local dev
+    echo "bootram: waiting for device with UUID=uuid..."
+    while true; do
+        dev=$(blkid -U uuid 2>/dev/null)
+        [ -n "$dev" ] && break
+        sleep 1
+    done
+    echo "bootram: found $dev, mounting..."
+    mount -U uuid /mnt/stuff
 
     modprobe zram
 
