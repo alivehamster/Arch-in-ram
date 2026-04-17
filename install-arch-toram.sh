@@ -214,8 +214,8 @@ echo "root:$root_password" | chpasswd
 bootctl install
 
 cp /usr/local/share/squashfs-stuff/systemd-boot/loader.conf /boot/loader/loader.conf
-cp /usr/local/share/squashfs-stuff/systemd-boot/entries/arch.conf /boot/loader/entries/arch-$squashfs_name.conf
-sed -i "s/squash-name/$squashfs_name/g" /boot/loader/entries/arch-$squashfs_name.conf
+cp /usr/local/share/squashfs-stuff/systemd-boot/entries/arch.conf /boot/loader/entries/$squashfs_name.conf
+sed -i "s/squash-name/$squashfs_name/g" /boot/loader/entries/$squashfs_name.conf
 
 if [[ "$secureboot_choice" != "y" ]]; then
   echo "Secure Boot support will not be added"

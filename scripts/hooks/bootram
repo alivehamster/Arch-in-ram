@@ -1,6 +1,6 @@
 #!/bin/ash
 
-run_hook() {
+squash_mount() {
     mkdir -p /mnt/stuff
 
     local dev
@@ -13,21 +13,24 @@ run_hook() {
     echo "bootram: found $dev, mounting..."
     mount -U uuid /mnt/stuff
 
-    modprobe zram
+    mount -o remount,size=ramdisk-size /run
+    mkdir -p /run/overlay
 
-    mkdir -p /squash_root
-    zramctl /dev/zram0 --algorithm zstd --size ramdisk-size
-    mkfs.ext4 /dev/zram0
-    mount /dev/zram0 /squash_root
-
-    unsquashfs -d /squash_root /mnt/stuff/squashfs/squash-name.sfs
-    mkdir -p /squash_root/proc /squash_root/sys /squash_root/dev /squash_root/run /squash_root/tmp
+    cp /mnt/stuff/squashfs/squash-name.sfs /run/overlay/rootfs.sfs
     sync
-    umount /squash_root
     umount /mnt/stuff
 
-    squash_mount() {
-        mount "/dev/zram0" "$1"
-    }
+    mkdir -p /run/overlay/lower
+    mount -t squashfs /run/overlay/rootfs.sfs /run/overlay/lower -o loop
+
+    # move quick save files here
+    mkdir -p /run/overlay/upper
+    mkdir -p /run/overlay/upper/proc /run/overlay/upper/sys /run/overlay/upper/dev /run/overlay/upper/run /run/overlay/upper/tmp
+
+    mkdir -p /run/overlay/work
+    mount -t overlay overlay -o lowerdir=/run/overlay/lower,upperdir=/run/overlay/upper,workdir=/run/overlay/work "$1"
+}
+
+run_hook() {
     mount_handler=squash_mount
 }
