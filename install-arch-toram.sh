@@ -135,13 +135,11 @@ pacstrap -K $rootfsloc linux base linux-firmware kernel-modules-hook base-devel 
 
 boot_uuid=$(blkid -s UUID -o value /dev/${drive}1)
 fs_uuid=$(blkid -s UUID -o value /dev/${drive}2)
-part_uuid=$(blkid -s PARTUUID -o value /dev/${drive}2)
 
 # copy squashfs script to new root
 cp ./scripts/squashfs.sh $rootfsloc/usr/local/bin/squashfs
 sed -i "s/storage-uuid/$fs_uuid/g" $rootfsloc/usr/local/bin/squashfs
 sed -i "s/boot-uuid/$boot_uuid/g" $rootfsloc/usr/local/bin/squashfs
-sed -i "s/partition-uuid/$part_uuid/g" $rootfsloc/usr/local/bin/squashfs
 chmod +x $rootfsloc/usr/local/bin/squashfs
 
 # copy mkinitcpio hooks to new root
@@ -150,7 +148,7 @@ cp ./scripts/hooks/bootram $rootfsloc/usr/local/share/squashfs-stuff
 
 cp ./scripts/install/bootram $rootfsloc/etc/initcpio/install/bootram
 cp ./scripts/hooks/bootram $rootfsloc/etc/initcpio/hooks/bootram
-sed -i "s/part-uuid/$part_uuid/g" $rootfsloc/etc/initcpio/hooks/bootram
+sed -i "s/uuid/$fs_uuid/g" $rootfsloc/etc/initcpio/hooks/bootram
 sed -i "s/ramdisk-size/$ramdisk_size/g" $rootfsloc/etc/initcpio/hooks/bootram
 sed -i "s/squash-name/$squashfs_name/g" $rootfsloc/etc/initcpio/hooks/bootram
 
