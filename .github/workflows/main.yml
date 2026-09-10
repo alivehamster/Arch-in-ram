@@ -1,0 +1,53 @@
+name: Build PKGBUILD package
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+    steps:
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm --needed git
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set pkgver to current commit id
+        id: pkgver
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          commit=$(git rev-parse --short HEAD)
+          sed -i "s/^pkgver=.*/pkgver=${commit}/" PKGBUILD
+          echo "commit=${commit}" >> "$GITHUB_OUTPUT"
+
+      - name: Build package
+        run: |
+          useradd -m builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          su builder -c "cd '$GITHUB_WORKSPACE' && makepkg -f --noconfirm"
+
+      - name: Commit built package
+        env:
+          COMMIT: ${{ steps.pkgver.outputs.commit }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git rm -f --ignore-unmatch -- *.pkg.tar.zst
+          git add PKGBUILD
+          git add -- *.pkg.tar.zst
+          git commit -m "Build package for commit ${COMMIT} [skip ci]" || echo "Nothing to commit"
+          git push

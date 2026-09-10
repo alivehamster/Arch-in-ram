@@ -1,5 +1,5 @@
 pkgname=Arch-in-ram
-pkgver=version
+pkgver=0
 pkgrel=1
 pkgdesc="hooks and other files to make an arch linux system boot to ram"
 arch=('any')

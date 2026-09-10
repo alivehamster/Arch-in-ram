@@ -103,9 +103,9 @@ if [[ "$secureboot_choice" == "y" ]]; then
   secureboot_packages="base-devel git sudo"
 fi
 
-pkgname=$(sed -n "s/^pkgname=['\"]\([^'\"]*\)['\"]$/\1/p" PKGBUILD)
-pkgver=$(sed -n "s/^pkgver=['\"]\([^'\"]*\)['\"]$/\1/p" PKGBUILD)
-pkgrel=$(sed -n "s/^pkgrel=['\"]\([^'\"]*\)['\"]$/\1/p" PKGBUILD)
+pkgname=$(sed -nE "s/^pkgname=['\"]?([^'\"]*)['\"]?$/\1/p" PKGBUILD)
+pkgver=$(sed -nE "s/^pkgver=['\"]?([^'\"]*)['\"]?$/\1/p" PKGBUILD)
+pkgrel=$(sed -nE "s/^pkgrel=['\"]?([^'\"]*)['\"]?$/\1/p" PKGBUILD)
 pkgarch=$(sed -n "s/^arch=('\([^']*\)').*/\1/p" PKGBUILD)
 package_file="${pkgname}-${pkgver}-${pkgrel}-${pkgarch}.pkg.tar.zst"
 
@@ -149,7 +149,9 @@ mount --mkdir /dev/${drive}1 $rootfsloc/boot
 boot_uuid=$(blkid -s UUID -o value /dev/${drive}1)
 fs_uuid=$(blkid -s UUID -o value /dev/${drive}2)
 
-mkdir -p "$rootfsloc/etc"
+# install packages
+pacstrap -K "$rootfsloc" base kernel-modules-hook squashfs-tools $packages $secureboot_packages
+
 cat > "$rootfsloc/etc/arch-in-ram.conf" <<EOF
 # Changing these values only takes effect when the Arch-in-RAM package is updated
 SQUASHFS="$squashfs_name"
@@ -158,8 +160,8 @@ STORAGE_UUID="$fs_uuid"
 BOOT_UUID="$boot_uuid"
 EOF
 
-# install packages
-pacstrap -K $rootfsloc base kernel-modules-hook squashfs-tools "./$package_file" $packages $secureboot_packages
+pacstrap -U "$rootfsloc" "./$package_file"
+
 
 # copy loader.conf to root filesystem
 cp ./scripts/systemd-boot/loader.conf $rootfsloc/root/loader.conf
