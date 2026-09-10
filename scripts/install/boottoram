@@ -1,10 +1,8 @@
 #!/bin/ash
 
 build() {
-    add_module "zram"
-    add_binary "/usr/bin/unsquashfs"
-    add_binary "/usr/bin/zramctl"
-    add_binary mkfs.ext4
+    # add_module "squashfs"
+    # add_module "overlay"
     add_runscript
 }
 

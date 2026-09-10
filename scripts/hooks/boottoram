@@ -1,0 +1,36 @@
+#!/bin/ash
+
+squash_mount() {
+    mkdir -p /mnt/stuff
+
+    local dev
+    echo "bootram: waiting for device with UUID=uuid..."
+    while true; do
+        dev=$(blkid -U uuid 2>/dev/null)
+        [ -n "$dev" ] && break
+        sleep 1
+    done
+    echo "bootram: found $dev, mounting..."
+    mount -U uuid /mnt/stuff
+
+    mount -o remount,size=ramdisk-size /run
+    mkdir -p /run/overlay
+
+    cp /mnt/stuff/squashfs/squash-name.sfs /run/overlay/rootfs.sfs
+    sync
+    umount /mnt/stuff
+
+    mkdir -p /run/overlay/lower
+    mount -t squashfs /run/overlay/rootfs.sfs /run/overlay/lower -o loop
+
+    # move quick save files here
+    mkdir -p /run/overlay/upper
+    mkdir -p /run/overlay/upper/proc /run/overlay/upper/sys /run/overlay/upper/dev /run/overlay/upper/run /run/overlay/upper/tmp
+
+    mkdir -p /run/overlay/work
+    mount -t overlay overlay -o lowerdir=/run/overlay/lower,upperdir=/run/overlay/upper,workdir=/run/overlay/work "$1"
+}
+
+run_hook() {
+    mount_handler=squash_mount
+}
