@@ -65,15 +65,15 @@ echo "Enter the size of the ramdisk:"
 echo "This is the amount of ram space the filesystem will have access to"
 read -p "size{K,M,G,T,P} (recommended min: 4G) : " ramdisk_size
 ramdisk_size=${ramdisk_size:-$default_ramdisk_size}
-echo "root partition size set to: $ramdisk_size"
+echo "ramdisk size set to: $ramdisk_size"
 
 # select root filesystem mount location
 default_root_loc="/mnt/arch-install"
 echo
 echo "default: $default_root_loc"
-read -p "directory to mount filesystem:" rootfsloc
-rootfsloc=${rootfsloc:-$default_root_loc}
-echo "root filesystem mount location: $rootfsloc"
+read -p "work directory:" installfsloc
+installfsloc=${installfsloc:-$default_root_loc}
+echo "work directory location: $installfsloc"
 
 # select packages to install
 echo
@@ -142,8 +142,11 @@ mkfs.fat -F32 /dev/${drive}1
 mkfs.ext4 /dev/${drive}2
 # mkfs.ext4 /dev/${drive}3
 
+rootfsloc=$installfsloc/root
+
 # mount filesystem
-mount --mkdir /dev/${drive}2 $rootfsloc
+mount --mkdir /dev/${drive}2 $installfsloc/storage
+mount --mkdir -t tmpfs -o size=$ramdisk_size tmpfs $rootfsloc
 mount --mkdir /dev/${drive}1 $rootfsloc/boot
 
 boot_uuid=$(blkid -s UUID -o value /dev/${drive}1)
@@ -280,14 +283,14 @@ safe_unmount() {
   return 0
 }
 
-cp $rootfsloc/root/rootfs.sfs ./
+mkdir -p $installfsloc/storage/fs/$squashfs_name
+cp $rootfsloc/root/rootfs.sfs $installfsloc/storage/fs/$squashfs_name/rootfs.sfs
 safe_unmount "$rootfsloc/boot"
-rm -rf "$rootfsloc"/*
-mkdir -p "$rootfsloc/squashfs"
-mv ./rootfs.sfs "$rootfsloc/squashfs/$squashfs_name.sfs"
+
+umount "$rootfsloc"
 
 # unmount the filesystem
-safe_unmount "$rootfsloc"
+safe_unmount "$installfsloc/storage"
 
 
 # Double check and force unmount if needed

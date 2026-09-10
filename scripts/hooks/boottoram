@@ -16,7 +16,7 @@ squash_mount() {
     mount -o remount,size=ramdisk-size /run
     mkdir -p /run/overlay
 
-    cp /mnt/stuff/squashfs/squash-name.sfs /run/overlay/rootfs.sfs
+    cp /mnt/stuff/fs/squash-name/rootfs.sfs /run/overlay/rootfs.sfs
     sync
     umount /mnt/stuff
 

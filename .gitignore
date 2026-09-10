@@ -1,3 +1,6 @@
 packages.txt
 test.sh
 rootfs.sfs
+
+pkg/
+Arch-in-ram/
