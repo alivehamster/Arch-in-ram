@@ -203,6 +203,7 @@ echo "root:$root_password" | chpasswd
 bootctl install
 
 cp /root/loader.conf /boot/loader/loader.conf
+rm /root/loader.conf
 cp /usr/share/arch-in-ram/arch.conf /boot/loader/entries/$squashfs_name.conf
 sed -i "s/squash-name/$squashfs_name/g" /boot/loader/entries/$squashfs_name.conf
 
