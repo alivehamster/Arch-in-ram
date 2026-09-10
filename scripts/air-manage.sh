@@ -1,7 +1,14 @@
 #!/bin/bash
 
-storage_uuid="storage-uuid"
-boot_uuid="boot-uuid"
+config_file="/etc/arch-in-ram.conf"
+if [ ! -r "$config_file" ]; then
+  echo "Error: Configuration file $config_file does not exist or is not readable."
+  exit 1
+fi
+
+source "$config_file"
+storage_uuid="$STORAGE_UUID"
+boot_uuid="$BOOT_UUID"
 
 # check if root
 if [ "$EUID" -ne 0 ]; then
@@ -57,20 +64,28 @@ case $choice in
     echo
     echo "Enter the size of the ramdisk:"
     echo "This is the amount of ram space the filesystem will have access to"
-    read -p "size{K,M,G,T,P} (rec: 4G) : " ramdisk_size
+    read -p "size{K,M,G,T,P} (recommended min: 4G) : " ramdisk_size
 
     mkdir -p $BOOT_MOUNT/linux/$squashfs_name
 
-    cp /usr/local/share/squashfs-stuff/bootram /etc/initcpio/hooks/bootram
-    sed -i "s/uuid/$storage_uuid/g" /etc/initcpio/hooks/bootram
-    sed -i "s/ramdisk-size/$ramdisk_size/g" /etc/initcpio/hooks/bootram
-    sed -i "s/squash-name/$squashfs_name/g" /etc/initcpio/hooks/bootram
+    printf '%s\n' \
+      '# Changing these values only take effect when the Arch-in-RAM package is updated.' \
+      "SQUASHFS=\"$squashfs_name\"" \
+      "RAMDISK_SIZE=\"$ramdisk_size\"" \
+      "STORAGE_UUID=\"$storage_uuid\"" \
+      "BOOT_UUID=\"$boot_uuid\"" > "$config_file"
+
+
+    cp /usr/share/arch-in-ram/boottoram /etc/initcpio/hooks/boottoram
+    sed -i "s/uuid/$storage_uuid/g" /etc/initcpio/hooks/boottoram
+    sed -i "s/ramdisk-size/$ramdisk_size/g" /etc/initcpio/hooks/boottoram
+    sed -i "s/squash-name/$squashfs_name/g" /etc/initcpio/hooks/boottoram
 
     echo "Generating new initramfs..."
     mkinitcpio -P
 
-    cp /usr/local/share/squashfs-stuff/systemd-boot/entries/arch.conf $BOOT_MOUNT/loader/entries/arch-$squashfs_name.conf
-    sed -i "s/squash-name/$squashfs_name/g" $BOOT_MOUNT/loader/entries/arch-$squashfs_name.conf
+    cp /usr/share/arch-in-ram/arch.conf $BOOT_MOUNT/loader/entries/$squashfs_name.conf
+    sed -i "s/squash-name/$squashfs_name/g" $BOOT_MOUNT/loader/entries/$squashfs_name.conf
 
     echo "Copying kernel and initramfs files..."
     cp "/boot/vmlinuz-linux" "$BOOT_MOUNT/linux/$squashfs_name/vmlinuz-linux"
@@ -138,7 +153,7 @@ case $choice in
     done    
 
     rm -r "$BOOT_MOUNT/linux/$image"
-    rm $BOOT_MOUNT/loader/entries/arch-$image.conf
+    rm $BOOT_MOUNT/loader/entries/$image.conf
     rm $MOUNT_POINT/squashfs/$image.sfs
 
     ;;
