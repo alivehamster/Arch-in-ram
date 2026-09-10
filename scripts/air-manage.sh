@@ -53,7 +53,7 @@ fi
 echo
 echo "Select an option:"
 echo "1) Create new rootfs"
-echo "2) Save to existing rootfs"
+echo "2) Save to current rootfs"
 echo "3) Delete rootfs"
 read -p "Enter choice [1-3]: " choice
 
@@ -92,35 +92,21 @@ case $choice in
     cp "/boot/initramfs-linux.img" "$BOOT_MOUNT/linux/$squashfs_name/initramfs-linux.img"
     echo "Kernel files copied to $BOOT_MOUNT/linux/$squashfs_name/"
 
-    rm $MOUNT_POINT/squashfs/$squashfs_name.sfs
-    mksquashfs / $MOUNT_POINT/squashfs/$squashfs_name.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /lost+found -comp zstd
+    rm $MOUNT_POINT/fs/$squashfs_name/rootfs.sfs
+    mkdir -p $MOUNT_POINT/fs/$squashfs_name
+    mksquashfs / $MOUNT_POINT/fs/$squashfs_name/rootfs.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /lost+found -comp zstd
     echo "Created new rootfs: $squashfs_name.sfs"
     ;;
     
   2)
     echo
-    if ! ls $MOUNT_POINT/squashfs/*.sfs >/dev/null 2>&1; then
+    if ! ls $MOUNT_POINT/fs/*/rootfs.sfs >/dev/null 2>&1; then
       echo "No rootfs images found"
       # unmount after
       exit 1
     fi
-    
-    # Create array of available images
-    images=()
-    while IFS= read -r file; do
-      images+=("$(basename "$file" .sfs)")
-    done < <(ls -1 $MOUNT_POINT/squashfs/*.sfs)
-    
-    # Display selection menu
-    echo "Select a rootfs image:"
-    select image in "${images[@]}"; do
-      if [ -n "$image" ]; then
-        echo "Selected: $image.sfs"
-        break
-      else
-        echo "Invalid selection"
-      fi
-    done
+
+    image="$SQUASHFS"
 
     # Copy kernel and initramfs
     rm "$BOOT_MOUNT/linux/$image/vmlinuz-linux"
@@ -129,32 +115,38 @@ case $choice in
     cp "/boot/vmlinuz-linux" "$BOOT_MOUNT/linux/$image/vmlinuz-linux"
     cp "/boot/initramfs-linux.img" "$BOOT_MOUNT/linux/$image/initramfs-linux.img"
     echo "Kernel files copied to $BOOT_MOUNT/linux/$image/"
-    rm $MOUNT_POINT/squashfs/$image.sfs
-    mksquashfs / $MOUNT_POINT/squashfs/$image.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /lost+found -comp zstd
-    echo "Created new rootfs: $image.sfs"
+    rm $MOUNT_POINT/fs/$image/rootfs.sfs
+    mksquashfs / $MOUNT_POINT/fs/$image/rootfs.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /lost+found -comp zstd
+    echo "Saved rootfs: $image"
     ;;
     
   3)
-    # Create array of available images
-    images=()
-    while IFS= read -r file; do
-      images+=("$(basename "$file" .sfs)")
-    done < <(ls -1 $MOUNT_POINT/squashfs/*.sfs)
+    if ! ls "$MOUNT_POINT"/fs/*/rootfs.sfs >/dev/null 2>&1; then
+      echo "No rootfs images found"
+      exit 1
+    fi
 
-    # Display selection menu
+    images=()
+    for image_dir in "$MOUNT_POINT"/fs/*; do
+      [ -d "$image_dir" ] || continue
+      if [ -f "$image_dir/rootfs.sfs" ]; then
+        images+=("$(basename "$image_dir")")
+      fi
+    done
+
     echo "Select a rootfs image:"
     select image in "${images[@]}"; do
       if [ -n "$image" ]; then
-        echo "Selected: $image.sfs"
+        echo "Selected: $image"
         break
       else
         echo "Invalid selection"
       fi
-    done    
+    done
 
-    rm -r "$BOOT_MOUNT/linux/$image"
+    rm -r $BOOT_MOUNT/linux/$image
     rm $BOOT_MOUNT/loader/entries/$image.conf
-    rm $MOUNT_POINT/squashfs/$image.sfs
+    rm -r $MOUNT_POINT/fs/$image
 
     ;;
     
