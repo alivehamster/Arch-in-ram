@@ -103,14 +103,11 @@ if [[ "$secureboot_choice" == "y" ]]; then
   secureboot_packages="base-devel git sudo"
 fi
 
-pkgname=$(sed -nE "s/^pkgname=['\"]?([^'\"]*)['\"]?$/\1/p" PKGBUILD)
-pkgver=$(sed -nE "s/^pkgver=['\"]?([^'\"]*)['\"]?$/\1/p" PKGBUILD)
-pkgrel=$(sed -nE "s/^pkgrel=['\"]?([^'\"]*)['\"]?$/\1/p" PKGBUILD)
-pkgarch=$(sed -n "s/^arch=('\([^']*\)').*/\1/p" PKGBUILD)
-package_file="${pkgname}-${pkgver}-${pkgrel}-${pkgarch}.pkg.tar.zst"
 
-if [[ -z "$pkgname" || -z "$pkgver" || -z "$pkgrel" || -z "$pkgarch" ]]; then
-  echo "Could not determine package name, version, release, or architecture from PKGBUILD. Exiting."
+package_file=$(compgen -G "Arch-in-ram-*.pkg.tar.zst" | head -n1)
+
+if [[ -z "$package_file" ]]; then
+  echo "Could not find a built Arch-in-ram package (*.pkg.tar.zst) in the current directory. Exiting."
   exit 1
 fi
 

@@ -4,3 +4,4 @@ rootfs.sfs
 
 pkg/
 Arch-in-ram/
+*.pkg.tar.zst

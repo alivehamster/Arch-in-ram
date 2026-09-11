@@ -1,5 +1,5 @@
 pkgname=Arch-in-ram
-pkgver=0
+pkgver=1
 pkgrel=1
 pkgdesc="hooks and other files to make an arch linux system boot to ram"
 arch=('any')
@@ -8,6 +8,12 @@ makedepends=('git')
 install=${pkgname}.install
 source=("$pkgname::git+file://$(pwd)/.git")
 sha256sums=('SKIP')
+
+# derived from the built commit at package time, never hand-edited or committed by CI
+pkgver() {
+  cd "$srcdir/$pkgname"
+  git rev-parse --short HEAD
+}
 
 package() {
   cd "$srcdir/$pkgname/scripts"
