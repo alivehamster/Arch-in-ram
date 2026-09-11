@@ -1,4 +1,7 @@
 packages.txt
 test.sh
 rootfs.sfs
-xfce.sfs
+
+pkg/
+Arch-in-ram/
+*.pkg.tar.zst

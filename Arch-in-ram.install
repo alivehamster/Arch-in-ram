@@ -1,0 +1,39 @@
+configure() {
+  config_file="/etc/arch-in-ram.conf"
+  if [ ! -r "$config_file" ]; then
+    echo "Error: Configuration file $config_file does not exist or is not readable."
+    exit 1
+  fi
+
+  source "$config_file"
+  storage_uuid="$STORAGE_UUID"
+  ramdisk_size="$RAMDISK_SIZE"
+  squashfs_name="$SQUASHFS"
+
+  sed -i "s/uuid/$storage_uuid/g" /etc/initcpio/hooks/boottoram
+  sed -i "s/ramdisk-size/$ramdisk_size/g" /etc/initcpio/hooks/boottoram
+  sed -i "s/squash-name/$squashfs_name/g" /etc/initcpio/hooks/boottoram
+}
+
+post_install() {
+
+  configure
+
+  # remove autodetect for compatibility on multiple systems
+  sed -i 's/\<autodetect\>//g' /etc/mkinitcpio.conf
+
+  # replace systemd hooks with busybox equivalents for compatibility
+  sed -i 's/\<systemd\>/udev/g' /etc/mkinitcpio.conf
+  sed -i 's/\<sd-vconsole\>/consolefont/g' /etc/mkinitcpio.conf
+
+  # add bootram hook at the end
+  sed -i 's/\(HOOKS=(.*\))/\1 boottoram)/' /etc/mkinitcpio.conf
+}
+
+post_upgrade() {
+  configure
+}
+
+post_remove() {
+  echo "Uninstalling this script will lead to the system being unable to boot"
+}

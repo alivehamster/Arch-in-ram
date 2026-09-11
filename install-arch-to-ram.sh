@@ -65,19 +65,22 @@ echo "Enter the size of the ramdisk:"
 echo "This is the amount of ram space the filesystem will have access to"
 read -p "size{K,M,G,T,P} (recommended min: 4G) : " ramdisk_size
 ramdisk_size=${ramdisk_size:-$default_ramdisk_size}
-echo "root partition size set to: $ramdisk_size"
+echo "ramdisk size set to: $ramdisk_size"
 
 # select root filesystem mount location
 default_root_loc="/mnt/arch-install"
 echo
 echo "default: $default_root_loc"
-read -p "directory to mount filesystem:" rootfsloc
-rootfsloc=${rootfsloc:-$default_root_loc}
-echo "root filesystem mount location: $rootfsloc"
+read -p "work directory:" installfsloc
+installfsloc=${installfsloc:-$default_root_loc}
+echo "work directory location: $installfsloc"
 
 # select packages to install
 echo
-echo "list packages to install seperated with spaces ex: networkmanager nano vi"
+echo "list packages to install seperated with spaces ex: linux, networkmanager, nano"
+echo "base, kernel-modules-hook, and squashfs-tools are automanically included"
+echo "base-devel, git, and sudo will be added if secureboot is enabled"
+
 read -p "packages to install:" packages
 
 # select hostname
@@ -94,6 +97,19 @@ read -p "Enter squashfs readonly filesystem name: " squashfs_name
 # enable secure boot
 echo
 read -p "Add secureboot with shim boot (y/n): " secureboot_choice
+
+secureboot_packages=""
+if [[ "$secureboot_choice" == "y" ]]; then
+  secureboot_packages="base-devel git sudo"
+fi
+
+
+package_file=$(compgen -G "Arch-in-ram-*.pkg.tar.zst" | head -n1)
+
+if [[ -z "$package_file" ]]; then
+  echo "Could not find a built Arch-in-ram package (*.pkg.tar.zst) in the current directory. Exiting."
+  exit 1
+fi
 
 # Create partition using fdisk
 (
@@ -123,59 +139,32 @@ mkfs.fat -F32 /dev/${drive}1
 mkfs.ext4 /dev/${drive}2
 # mkfs.ext4 /dev/${drive}3
 
+rootfsloc=$installfsloc/root
+
 # mount filesystem
-mount --mkdir /dev/${drive}2 $rootfsloc
+mount --mkdir /dev/${drive}2 $installfsloc/storage
+mount --mkdir -t tmpfs -o size=$ramdisk_size tmpfs $rootfsloc
 mount --mkdir /dev/${drive}1 $rootfsloc/boot
-
-# install packages
-pacstrap -K $rootfsloc linux base linux-firmware kernel-modules-hook base-devel wget git squashfs-tools amd-ucode intel-ucode sudo $packages
-
-# generate fstab only include boot
-# genfstab -U $rootfsloc | grep -A 1 "^# /dev/${drive}1" >> $rootfsloc/etc/fstab
 
 boot_uuid=$(blkid -s UUID -o value /dev/${drive}1)
 fs_uuid=$(blkid -s UUID -o value /dev/${drive}2)
 
-# copy squashfs script to new root
-cp ./scripts/squashfs.sh $rootfsloc/usr/local/bin/squashfs
-sed -i "s/storage-uuid/$fs_uuid/g" $rootfsloc/usr/local/bin/squashfs
-sed -i "s/boot-uuid/$boot_uuid/g" $rootfsloc/usr/local/bin/squashfs
-chmod +x $rootfsloc/usr/local/bin/squashfs
+# install packages
+pacstrap -K "$rootfsloc" base kernel-modules-hook squashfs-tools $packages $secureboot_packages
 
-# copy mkinitcpio hooks to new root
-mkdir -p $rootfsloc/usr/local/share/squashfs-stuff
-cp ./scripts/hooks/bootram $rootfsloc/usr/local/share/squashfs-stuff
+cat > "$rootfsloc/etc/arch-in-ram.conf" <<EOF
+# Changing these values only takes effect when the Arch-in-RAM package is updated
+SQUASHFS="$squashfs_name"
+RAMDISK_SIZE="$ramdisk_size"
+STORAGE_UUID="$fs_uuid"
+BOOT_UUID="$boot_uuid"
+EOF
 
-cp ./scripts/install/bootram $rootfsloc/etc/initcpio/install/bootram
-cp ./scripts/hooks/bootram $rootfsloc/etc/initcpio/hooks/bootram
-sed -i "s/uuid/$fs_uuid/g" $rootfsloc/etc/initcpio/hooks/bootram
-sed -i "s/ramdisk-size/$ramdisk_size/g" $rootfsloc/etc/initcpio/hooks/bootram
-sed -i "s/squash-name/$squashfs_name/g" $rootfsloc/etc/initcpio/hooks/bootram
+pacstrap -U "$rootfsloc" "./$package_file"
 
-chmod +x $rootfsloc/etc/initcpio/install/bootram
-chmod +x $rootfsloc/etc/initcpio/hooks/bootram
 
-# modify mkinitcpio.conf
-# if grep -q "^MODULES=" $rootfsloc/etc/mkinitcpio.conf; then
-#   sed -i 's/^MODULES=(\(.*\))/MODULES=(\1squashfs overlay)/' $rootfsloc/etc/mkinitcpio.conf
-# else
-#   echo 'MODULES=(squashfs overlay)' >> $rootfsloc/etc/mkinitcpio.conf
-# fi
-
-# remove autodetect for compatibility on multiple systems
-sed -i 's/\<autodetect\>//g' $rootfsloc/etc/mkinitcpio.conf
-
-# replace systemd hooks with busybox equivalents for compatibility
-sed -i 's/\<systemd\>/udev/g' $rootfsloc/etc/mkinitcpio.conf
-sed -i 's/\<sd-vconsole\>/consolefont/g' $rootfsloc/etc/mkinitcpio.conf
-
-# add bootram hook at the end
-sed -i 's/\(HOOKS=(.*\))/\1 bootram)/' $rootfsloc/etc/mkinitcpio.conf
-
-# add systemd-boot config
-# cp -r ./scripts/systemd-boot $rootfsloc/root/systemd-boot
-mkdir -p $rootfsloc/usr/local/share/squashfs-stuff
-cp -r ./scripts/systemd-boot $rootfsloc/usr/local/share/squashfs-stuff
+# copy loader.conf to root filesystem
+cp ./scripts/systemd-boot/loader.conf $rootfsloc/root/loader.conf
 
 # create a temporary script to be executed within the chroot environment
 cat <<EOF > $rootfsloc/root/chroot-script.sh
@@ -213,9 +202,10 @@ echo "root:$root_password" | chpasswd
 # install and configure systemd-boot
 bootctl install
 
-cp /usr/local/share/squashfs-stuff/systemd-boot/loader.conf /boot/loader/loader.conf
-cp /usr/local/share/squashfs-stuff/systemd-boot/entries/arch.conf /boot/loader/entries/arch-$squashfs_name.conf
-sed -i "s/squash-name/$squashfs_name/g" /boot/loader/entries/arch-$squashfs_name.conf
+cp /root/loader.conf /boot/loader/loader.conf
+rm /root/loader.conf
+cp /usr/share/arch-in-ram/arch.conf /boot/loader/entries/$squashfs_name.conf
+sed -i "s/squash-name/$squashfs_name/g" /boot/loader/entries/$squashfs_name.conf
 
 if [[ "$secureboot_choice" != "y" ]]; then
   echo "Secure Boot support will not be added"
@@ -290,14 +280,14 @@ safe_unmount() {
   return 0
 }
 
-cp $rootfsloc/root/rootfs.sfs ./
+mkdir -p $installfsloc/storage/fs/$squashfs_name
+cp $rootfsloc/root/rootfs.sfs $installfsloc/storage/fs/$squashfs_name/rootfs.sfs
 safe_unmount "$rootfsloc/boot"
-rm -rf "$rootfsloc"/*
-mkdir -p "$rootfsloc/squashfs"
-mv ./rootfs.sfs "$rootfsloc/squashfs/$squashfs_name.sfs"
+
+umount "$rootfsloc"
 
 # unmount the filesystem
-safe_unmount "$rootfsloc"
+safe_unmount "$installfsloc/storage"
 
 
 # Double check and force unmount if needed

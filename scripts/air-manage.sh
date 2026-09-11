@@ -1,7 +1,14 @@
 #!/bin/bash
 
-storage_uuid="storage-uuid"
-boot_uuid="boot-uuid"
+config_file="/etc/arch-in-ram.conf"
+if [ ! -r "$config_file" ]; then
+  echo "Error: Configuration file $config_file does not exist or is not readable."
+  exit 1
+fi
+
+source "$config_file"
+storage_uuid="$STORAGE_UUID"
+boot_uuid="$BOOT_UUID"
 
 # check if root
 if [ "$EUID" -ne 0 ]; then
@@ -46,7 +53,7 @@ fi
 echo
 echo "Select an option:"
 echo "1) Create new rootfs"
-echo "2) Save to existing rootfs"
+echo "2) Save to current rootfs"
 echo "3) Delete rootfs"
 read -p "Enter choice [1-3]: " choice
 
@@ -57,55 +64,49 @@ case $choice in
     echo
     echo "Enter the size of the ramdisk:"
     echo "This is the amount of ram space the filesystem will have access to"
-    read -p "size{K,M,G,T,P} (rec: 4G) : " ramdisk_size
+    read -p "size{K,M,G,T,P} (recommended min: 4G) : " ramdisk_size
 
     mkdir -p $BOOT_MOUNT/linux/$squashfs_name
 
-    cp /usr/local/share/squashfs-stuff/bootram /etc/initcpio/hooks/bootram
-    sed -i "s/uuid/$storage_uuid/g" /etc/initcpio/hooks/bootram
-    sed -i "s/ramdisk-size/$ramdisk_size/g" /etc/initcpio/hooks/bootram
-    sed -i "s/squash-name/$squashfs_name/g" /etc/initcpio/hooks/bootram
+    printf '%s\n' \
+      '# Changing these values only take effect when the Arch-in-RAM package is updated.' \
+      "SQUASHFS=\"$squashfs_name\"" \
+      "RAMDISK_SIZE=\"$ramdisk_size\"" \
+      "STORAGE_UUID=\"$storage_uuid\"" \
+      "BOOT_UUID=\"$boot_uuid\"" > "$config_file"
+
+
+    cp /usr/share/arch-in-ram/boottoram /etc/initcpio/hooks/boottoram
+    sed -i "s/uuid/$storage_uuid/g" /etc/initcpio/hooks/boottoram
+    sed -i "s/ramdisk-size/$ramdisk_size/g" /etc/initcpio/hooks/boottoram
+    sed -i "s/squash-name/$squashfs_name/g" /etc/initcpio/hooks/boottoram
 
     echo "Generating new initramfs..."
     mkinitcpio -P
 
-    cp /usr/local/share/squashfs-stuff/systemd-boot/entries/arch.conf $BOOT_MOUNT/loader/entries/arch-$squashfs_name.conf
-    sed -i "s/squash-name/$squashfs_name/g" $BOOT_MOUNT/loader/entries/arch-$squashfs_name.conf
+    cp /usr/share/arch-in-ram/arch.conf $BOOT_MOUNT/loader/entries/$squashfs_name.conf
+    sed -i "s/squash-name/$squashfs_name/g" $BOOT_MOUNT/loader/entries/$squashfs_name.conf
 
     echo "Copying kernel and initramfs files..."
     cp "/boot/vmlinuz-linux" "$BOOT_MOUNT/linux/$squashfs_name/vmlinuz-linux"
     cp "/boot/initramfs-linux.img" "$BOOT_MOUNT/linux/$squashfs_name/initramfs-linux.img"
     echo "Kernel files copied to $BOOT_MOUNT/linux/$squashfs_name/"
 
-    rm $MOUNT_POINT/squashfs/$squashfs_name.sfs
-    mksquashfs / $MOUNT_POINT/squashfs/$squashfs_name.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /lost+found -comp zstd
+    rm $MOUNT_POINT/fs/$squashfs_name/rootfs.sfs
+    mkdir -p $MOUNT_POINT/fs/$squashfs_name
+    mksquashfs / $MOUNT_POINT/fs/$squashfs_name/rootfs.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /lost+found -comp zstd
     echo "Created new rootfs: $squashfs_name.sfs"
     ;;
     
   2)
     echo
-    if ! ls $MOUNT_POINT/squashfs/*.sfs >/dev/null 2>&1; then
+    if ! ls $MOUNT_POINT/fs/*/rootfs.sfs >/dev/null 2>&1; then
       echo "No rootfs images found"
       # unmount after
       exit 1
     fi
-    
-    # Create array of available images
-    images=()
-    while IFS= read -r file; do
-      images+=("$(basename "$file" .sfs)")
-    done < <(ls -1 $MOUNT_POINT/squashfs/*.sfs)
-    
-    # Display selection menu
-    echo "Select a rootfs image:"
-    select image in "${images[@]}"; do
-      if [ -n "$image" ]; then
-        echo "Selected: $image.sfs"
-        break
-      else
-        echo "Invalid selection"
-      fi
-    done
+
+    image="$SQUASHFS"
 
     # Copy kernel and initramfs
     rm "$BOOT_MOUNT/linux/$image/vmlinuz-linux"
@@ -114,32 +115,38 @@ case $choice in
     cp "/boot/vmlinuz-linux" "$BOOT_MOUNT/linux/$image/vmlinuz-linux"
     cp "/boot/initramfs-linux.img" "$BOOT_MOUNT/linux/$image/initramfs-linux.img"
     echo "Kernel files copied to $BOOT_MOUNT/linux/$image/"
-    rm $MOUNT_POINT/squashfs/$image.sfs
-    mksquashfs / $MOUNT_POINT/squashfs/$image.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /lost+found -comp zstd
-    echo "Created new rootfs: $image.sfs"
+    rm $MOUNT_POINT/fs/$image/rootfs.sfs
+    mksquashfs / $MOUNT_POINT/fs/$image/rootfs.sfs -e /proc /sys /dev /tmp /run /mnt /media /var/tmp /var/run /lost+found -comp zstd
+    echo "Saved rootfs: $image"
     ;;
     
   3)
-    # Create array of available images
-    images=()
-    while IFS= read -r file; do
-      images+=("$(basename "$file" .sfs)")
-    done < <(ls -1 $MOUNT_POINT/squashfs/*.sfs)
+    if ! ls "$MOUNT_POINT"/fs/*/rootfs.sfs >/dev/null 2>&1; then
+      echo "No rootfs images found"
+      exit 1
+    fi
 
-    # Display selection menu
+    images=()
+    for image_dir in "$MOUNT_POINT"/fs/*; do
+      [ -d "$image_dir" ] || continue
+      if [ -f "$image_dir/rootfs.sfs" ]; then
+        images+=("$(basename "$image_dir")")
+      fi
+    done
+
     echo "Select a rootfs image:"
     select image in "${images[@]}"; do
       if [ -n "$image" ]; then
-        echo "Selected: $image.sfs"
+        echo "Selected: $image"
         break
       else
         echo "Invalid selection"
       fi
-    done    
+    done
 
-    rm -r "$BOOT_MOUNT/linux/$image"
-    rm $BOOT_MOUNT/loader/entries/arch-$image.conf
-    rm $MOUNT_POINT/squashfs/$image.sfs
+    rm -r $BOOT_MOUNT/linux/$image
+    rm $BOOT_MOUNT/loader/entries/$image.conf
+    rm -r $MOUNT_POINT/fs/$image
 
     ;;
     
